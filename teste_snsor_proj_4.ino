@@ -1,7 +1,8 @@
+#include <Wire.h>
 
-#include <Ultrasonic.h>
 #include <Keypad.h>
-
+#define envia_mensagem 1
+#define toca_buzzer 2
 
 bool typing = false;//salvar estado da senha
 String senhaDigitada;
@@ -10,8 +11,7 @@ int buzzer = 11;
 long ultimoEstadoPorta;
 bool alarmeAtivado;
 int sensorPorta = 9;
-const int botao = 12;
-int estadobotao = LOW;
+
 
 
 const byte ROWS = 4; //four rows
@@ -32,6 +32,7 @@ Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
 
 void setup() {
   Serial.begin(9600);
+  Wire.begin();
 
   pinMode(A0, INPUT);
   pinMode(buzzer, OUTPUT);
@@ -39,38 +40,63 @@ void setup() {
 
 }
 
-void loop() {
+void requererEnvioSMS() {
+  Wire.beginTransmission(8);
+  Wire.write(envia_mensagem);
+  Wire.endTransmission();
+}
 
-  estadobotao = digitalRead(botao);
-  ultimoEstadoPorta = digitalRead(sensorPorta);
+void loop() {
+  int estadoPorta = digitalRead(sensorPorta);
 
 
   char key = keypad.getKey();
-  long now = millis();
 
-if (key){
 
-if (key == '7'){
-  alarmeAtivado = true;
-  Serial.println("Alarme ativado");}
+  if (key) {
 
- else if(key == '9'){
-    alarmeAtivado = false;
-    Serial.println("Alarme desativado");
+    if (key == '7') {
+      alarmeAtivado = true;
+      Serial.println("Alarme ativado");
+    }
+
+    else if (key == '9') {
+      alarmeAtivado = false;
+      Serial.println("Alarme desativado");
     }
   }
 
-  if ((sensorPorta == HIGH) && (senhaDigitada != senha) && alarmeAtivado) {
-    // Serial.println("30 Segundos");
-    tone(buzzer, 3000);
-    //mandar msg
-  }
 
-  
+
+  if (alarmeAtivado && (estadoPorta == 1)) {
+    //preciso dar o start do millis aqui, ele precisa começar a contar os 30s a partir
+    //daqui
+
+    long now = millis();
+
+    if (now % 30000  == 0) {
+      Serial.println("Entrou no millis");
+
+      if (senhaDigitada != senha) {
+
+        Serial.println("Senha incorreta");
+
+
+        Serial.println("30 Segundos");
+        tone(buzzer, 3000);
+        delay (500);
+        noTone(buzzer);
+        requererEnvioSMS();
+
+
+        // enviaSMS("Sua casa foi invadida")
+      }
+    }
+  }
 
   if (key && alarmeAtivado) {
 
-   if (typing && key != '#') {
+    if (typing && key != '#') {
       senhaDigitada += key;
       Serial.println(senhaDigitada);
     }
@@ -86,13 +112,18 @@ if (key == '7'){
     if (key == '#') {
       typing = false;
       Serial.println("Finalizado");
+
+
+      if (senhaDigitada == senha)
+      {
+        alarmeAtivado = false;
+        noTone (buzzer);
+        Serial.println("Alarme desativado");
+      }
     }
-    if (senhaDigitada == senha // '#') 
-    {
-      alarmeAtivado = false;
-      noTone (buzzer);
-      Serial.println("Alarme desativado");
-    }
+    // usou o + (mais) pq ambas as variaveis são do tipo String e Strings não somam,
+    //elas apenas juntam
+
   }
 }
 /* else {
